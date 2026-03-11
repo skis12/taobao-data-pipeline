@@ -1,0 +1,6 @@
+docker/pg_data/
+data/
+airflow/logs/
+data/
+airflow/logs/
+**/__pycache__/
