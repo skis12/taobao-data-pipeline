@@ -1,4 +1,7 @@
 淘宝用户行为海量数据分析与 RFM 模型构建 (Data Pipeline)
+
+![项目看板展示](dashboard.png)
+
 📖 项目简介
 本项目基于淘宝真实的亿级用户行为数据集（约 6.4GB），构建了一个端到端的企业级数据管道 (Data Pipeline)。项目涵盖了从基础设施容器化部署、海量数据分布式清洗、数仓分层建模，到核心业务指标 (RFM) 并行化计算与自动化工作流调度的全链路流程。
 
@@ -68,4 +71,4 @@ python3 ~/taobao_project/airflow/dags/pyspark_rfm_etl.py
 
 3. 访问 Airflow 调度平台
 浏览器访问 http://localhost:8080，开启 taobao_pyspark_rfm_dag 的日常自动化调度。
-![项目看板展示](dashboard.png)
+
