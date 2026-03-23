@@ -63,3 +63,4 @@ Bash
 python3 ~/taobao_project/airflow/dags/pyspark_rfm_etl.py
 3. 访问 Airflow 调度平台
 浏览器访问 http://localhost:8080，开启 taobao_pyspark_rfm_dag 的日常自动化调度。
+![项目看板展示](dashboard.png)
