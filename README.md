@@ -57,11 +57,15 @@ Plaintext
 Bash
 cd taobao_project/airflow
 docker-compose up -d
+
+
 2. 运行分布式计算管道
 进入 WSL 终端，直接执行 PySpark 脚本，触发 ODS 到 ADS 的数据流转与 RFM 计算：
 
 Bash
 python3 ~/taobao_project/airflow/dags/pyspark_rfm_etl.py
+
+
 3. 访问 Airflow 调度平台
 浏览器访问 http://localhost:8080，开启 taobao_pyspark_rfm_dag 的日常自动化调度。
 ![项目看板展示](dashboard.png)
