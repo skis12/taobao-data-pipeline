@@ -1,11 +1,25 @@
+import os
 import pandas as pd
 from sqlalchemy import create_engine
 import time
 
-# ================= 你的配置区 =================
-# 确保这里的 IP 和密码是正确的
-DB_IP = "127.0.0.1" 
-db_url = f"postgresql://admin:password123@{DB_IP}:5432/taobao_data"
+# ================= 配置区（通过环境变量注入敏感信息）=================
+# 使用前请设置环境变量，或在 .env 文件中配置：
+#   DB_USER=admin
+#   DB_PASSWORD=your_password
+#   DB_HOST=127.0.0.1
+#   DB_PORT=5432
+#   DB_NAME=taobao_data
+DB_USER = os.getenv("DB_USER", "admin")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
+DB_PORT = os.getenv("DB_PORT", "5432")
+DB_NAME = os.getenv("DB_NAME", "taobao_data")
+
+if not DB_PASSWORD:
+    raise ValueError("❌ 未设置 DB_PASSWORD 环境变量！请在 .env 文件或环境中设置数据库密码。")
+
+db_url = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 engine = create_engine(db_url)
 
 # CSV 文件路径

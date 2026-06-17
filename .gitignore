@@ -4,3 +4,6 @@ airflow/logs/
 data/
 airflow/logs/
 **/__pycache__/
+
+# 环境变量文件（包含数据库密码，禁止提交）
+.env

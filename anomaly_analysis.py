@@ -3,10 +3,20 @@
 基于 user_behavior 日度数据，拆解 GMV 波动归因
 分析框架：GMV ≈ UV × (购买/PV转化率)
 """
+import os
 import pandas as pd
 from sqlalchemy import create_engine
 
-DB_URL = "postgresql://admin:password123@172.26.180.180:5432/taobao_data"
+DB_USER = os.getenv("DB_USER", "admin")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
+DB_PORT = os.getenv("DB_PORT", "5432")
+DB_NAME = os.getenv("DB_NAME", "taobao_data")
+
+if not DB_PASSWORD:
+    raise ValueError("❌ 未设置 DB_PASSWORD 环境变量！请在 .env 文件或环境中设置数据库密码。")
+
+DB_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 engine = create_engine(DB_URL)
 
 def run_anomaly_analysis():
