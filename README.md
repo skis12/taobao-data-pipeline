@@ -1,74 +1,171 @@
-淘宝用户行为海量数据分析与 RFM 模型构建 (Data Pipeline)
+# 淘宝用户行为分析数据管道 (User Behavior Data Pipeline)
+
+[![GitHub last commit](https://img.shields.io/badge/status-active-brightgreen)](https://github.com/skis12/taobao-data-pipeline)
 
 ![项目看板展示](dashboard.png)
 
-📖 项目简介
-本项目基于淘宝真实的亿级用户行为数据集（约 6.4GB），构建了一个端到端的企业级数据管道 (Data Pipeline)。项目涵盖了从基础设施容器化部署、海量数据分布式清洗、数仓分层建模，到核心业务指标 (RFM) 并行化计算与自动化工作流调度的全链路流程。
+## 📖 项目简介
 
-最终成功将庞杂的原始流水日志提炼为 33MB 的高价值用户特征数据，为下游的 BI 可视化大屏和精准营销策略提供了可靠的数据底座。
+本项目基于淘宝真实用户行为数据集（**约 6,500 万行 / 6.4GB**），构建了一个端到端的数据管道，涵盖数据摄入、分布式清洗与聚合计算、自动化调度、以及业务指标归因分析的全链路。
 
-🛠️ 核心技术栈
-计算引擎: PySpark (解决海量数据单机内存溢出问题)
+> ⚠️ **关于项目名称**：数据集仅包含 `user_id / item_id / cat_id / behavior_type / ts` 五列，**没有交易金额字段**，因此严格意义上只计算了 **R（Recency，最近购买间隔）和 F（Frequency，购买频次）** 两个维度，暂时无法计算 M（Monetary，消费金额）。若补充商品价格表，只需在聚合阶段 JOIN 后加一行 `sum(amount)` 即可，架构无需改动。
 
-工作流调度: Apache Airflow (DAG 定时调度与容错机制)
+## 🛠️ 核心技术栈
 
-底层存储: PostgreSQL (数仓分层 ODS/ADS)
+| 类别 | 技术 |
+|------|------|
+| **数据摄入** | Python (pandas 分块读取), SQLAlchemy |
+| **分布式计算** | PySpark (DataFrame API / Spark SQL) |
+| **工作流调度** | Apache Airflow (DAG / Cron 定时调度 / 容错重试) |
+| **存储** | PostgreSQL（ODS 贴源层 / ADS 应用层） |
+| **容器化** | Docker, Docker Compose, WSL2 |
+| **安全配置** | 环境变量注入, `.env` 文件与代码分离 |
+| **可视化** | Metabase 敏捷 BI 看板 |
 
-容器化与环境: Docker, Docker Compose, WSL2 (Ubuntu)
+## ⚙️ 架构与数据流
 
-数据可视化: Metabase (敏捷 BI 看板构建)
-
-⚙️ 架构设计与亮点 (Core Features)
-1. 分布式数据处理与单机性能突破
-面对 6.4GB 的海量原始数据，直接使用传统的 Python (Pandas) 会导致严重的内存溢出 (OOM)。本项目引入 PySpark 分布式计算框架：
-
-使用 DataFrame API 进行高效的并行化数据清洗（去重、空值处理、时间戳转换）。
-
-利用 Spark SQL 底层的 HashAggregation 实现了 RFM 核心指标（最近一次购买间隔 R、购买频次 F）的极速聚合计算。
-
-2. 企业级工作流调度与容错 (Orchestration)
-摒弃了传统的手动脚本执行，全面拥抱 Apache Airflow 进行任务编排：
-
-编写 DAG 脚本实现每日凌晨 2 点的自动化定时调度 。
-
-实现了企业级的容错机制，配置了任务失败后的自动重试链路 (retries: 3, retry_delay: 5m)。
-
-3. 计算与调度环境解耦 (架构思考)
-遵循现代数据工程的最佳实践，在容器化部署时实现了“调度节点”与“计算节点”的物理隔离。Airflow 容器仅作为触发器与状态机，不承载庞大的 Spark 运行环境，避免了调度集群的臃肿，完美契合生产环境中通过 SparkSubmitOperator 向 YARN/K8s 集群提交任务的微服务架构思想。
-
-4. 规范化的数仓建模
-在 PostgreSQL 中实践了经典的数据仓库分层理论：
-
-ODS 层 (Operational Data Store): 贴源层，全量对接并保留 6.4GB 原始用户行为流水。
-
-ADS 层 (Application Data Service): 应用层，沉淀经过 PySpark 分布式计算产出的 ads_user_rfm_pyspark 结果表，直接服务于 BI 层。
-
-📂 项目目录结构
-Plaintext
 ```
-📁 taobao_project/
-├── 📂 airflow/
-│   └── 📂 dags/
-│       ├── 📜 pyspark_rfm_etl.py  # PySpark 分布式数据处理与计算核心逻辑
-│       └── 📜 taobao_rfm_dag.py   # Airflow DAG 自动化调度工作流配置
-├── 🐳 docker-compose.yaml         # 整体微型架构容器化部署文件
-└── 🚀 README.md                  # 快速启动 (Quick Start))
+UserBehavior.csv (6.4GB, ~6500万行)
+        │
+        ▼
+┌─────────────────────────────────────────┐
+│  import_data.py                          │
+│  职责：数据摄入（CSV → ODS 贴源层）        │
+│  核心技术：chunksize 分块读取 + 生成器模式  │
+│  关键决策：每批10万行, if_exists='append'  │
+└─────────────────────────────────────────┘
+        │
+        ▼
+  PostgreSQL - user_behavior 表 (ODS层)
+        │
+        ▼
+┌─────────────────────────────────────────┐
+│  airflow/dags/pyspark_rfm_etl.py         │
+│  职责：清洗 + RF聚合计算（ODS → ADS层）   │
+│  核心技术：Spark DataFrame API + JDBC     │
+│  清洗链路：去空→去重→日期转换→购买筛选→聚合│
+└─────────────────────────────────────────┘
+        │
+        ▼
+  PostgreSQL - ads_user_rfm_pyspark 表 (ADS层)
+        │
+        ├──→ Metabase（BI 看板）
+        │
+        └──→ anomaly_analysis.py（异动归因分析）
+               归因公式：GMV增量 = 流量贡献 + 转化率贡献
+        │
+        ▼
+┌─────────────────────────────────────────┐
+│  airflow/dags/taobao_rfm_dag.py          │
+│  职责：每天凌晨2点自动触发 ETL 计算       │
+│  容错：retries=3, retry_delay=5min       │
+│  调度：Cron '0 2 * * *', catchup=False   │
+└─────────────────────────────────────────┘
 ```
-1. 启动底层基础设施
-确保已安装 Docker Desktop 并开启 WSL2 后端，在终端执行以下命令拉起所有组件：
 
-Bash
-cd taobao_project/airflow
+## 📂 项目目录结构
+
+```
+taobao-data-pipeline/
+├── import_data.py                # 数据摄入：CSV分块读取 → PostgreSQL ODS层
+├── anomaly_analysis.py           # 异动归因分析：GMV增量拆解（流量 vs 转化率）
+├── airflow/
+│   └── dags/
+│       ├── pyspark_rfm_etl.py    # PySpark 分布式清洗 + RF聚合计算
+│       └── taobao_rfm_dag.py     # Airflow DAG 定时调度（每日凌晨2点）
+├── docker/
+│   └── docker-compose.yml        # 基础设施容器编排（PostgreSQL + Airflow）
+├── dashboard.png                 # Metabase 看板截图
+├── .env.example                  # 环境变量模板（可安全上传Git）
+├── .gitignore                    # 排除 .env 敏感文件
+└── README.md
+```
+
+## 🔐 安全配置
+
+数据库密码等敏感信息**不在代码中硬编码**，通过环境变量注入：
+
+- 代码使用 `os.getenv("DB_PASSWORD")` 读取
+- 实际密码存放于 `.env` 文件（已在 `.gitignore` 中排除，**不会上传到 GitHub**）
+- 提供 `.env.example` 模板文件，协作者复制并填入自己的凭据即可
+
+```bash
+# 快速配置
+cp .env.example .env
+# 编辑 .env 填入你的数据库密码
+```
+
+## 🚀 快速启动
+
+### 环境要求
+
+- Docker Desktop（已开启 WSL2 后端）
+- Python 3.10+
+- PostgreSQL JDBC 驱动（PySpark 自动通过 Maven 下载）
+
+### 1. 克隆项目
+
+```bash
+git clone https://github.com/skis12/taobao-data-pipeline.git
+cd taobao-data-pipeline
+```
+
+### 2. 配置环境变量
+
+```bash
+cp .env.example .env
+# 编辑 .env，填入数据库密码等信息
+```
+
+### 3. 启动基础设施
+
+```bash
+cd docker
 docker-compose up -d
+```
 
+### 4. 数据摄入（CSV → ODS）
 
-2. 运行分布式计算管道
-进入 WSL 终端，直接执行 PySpark 脚本，触发 ODS 到 ADS 的数据流转与 RFM 计算：
+```bash
+python import_data.py
+# 将 UserBehavior.csv 分块导入 PostgreSQL
+```
 
-Bash
-python3 ~/taobao_project/airflow/dags/pyspark_rfm_etl.py
+### 5. 运行 RF 聚合计算
 
+```bash
+python airflow/dags/pyspark_rfm_etl.py
+# Spark 从 ODS 读取 → 清洗 → 聚合 RF → 写入 ADS
+```
 
-3. 访问 Airflow 调度平台
-浏览器访问 http://localhost:8080，开启 taobao_pyspark_rfm_dag 的日常自动化调度。
+### 6. 访问 Airflow 调度平台
 
+浏览器访问 `http://localhost:8080`，开启 `taobao_pyspark_rfm_dag` 的每日自动调度。
+
+### 7. 运行异动归因分析
+
+```bash
+python anomaly_analysis.py
+# 两周数据对比 + GMV增长归因拆解
+```
+
+## 📊 核心亮点（面试可讲）
+
+| 维度 | 技术点 |
+|------|--------|
+| **数据摄入** | chunksize 分块读取，内存峰值控制在 150MB 以内，普通笔记本即可处理 6.4GB 文件 |
+| **分布式计算** | 开发阶段 `local[*]` 验证逻辑，生产改 `master("yarn")`，代码集群无关 |
+| **调度容错** | Airflow DAG + `retries=3` + 5分钟重试间隔 + `catchup=False` 避免回填爆炸 |
+| **归因分析** | 固定转化率算流量贡献，实际增量减去流量贡献 = 转化率贡献，二者加和等于总增量 |
+| **安全规范** | 敏感信息走 `os.getenv()`，`.gitignore` 排除 `.env`，GitHub 无密码泄漏 |
+
+## 📝 已知局限与改进方向
+
+- **M值缺失**：数据集无金额字段 → JOIN 商品价格表可补
+- **local模式**：受限于无集群硬件，开发在本地伪分布式完成 → 生产环境改 `master("yarn")`
+- **BashOperator**：当前用 `BashOperator` 调用 Python 脚本 → 生产建议切 `SparkSubmitOperator`
+- **异常处理**：当前为全局 `try/except` → 应细化为按异常类型分类处理与重试
+
+---
+
+*最后更新：2026-06*
